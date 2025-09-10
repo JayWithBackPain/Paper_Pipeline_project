@@ -41,12 +41,7 @@ graph TB
         H --> K
         K --> L
     end
-    
-    subgraph "配置管理"
-        Config
-        IAM[IAM Roles & Policies]
-        VPC[VPC & Security Groups]
-    end
+
 ```
 
 ### 詳細模組作業流程圖
@@ -62,11 +57,11 @@ sequenceDiagram
     participant S3D as S3 Data
     participant CWL as CloudWatch Logs
 
-    CW->>DC: 定時觸發 (每日)
-    DC->>S3C: 載入 YAML 配置
-    S3C-->>DC: 配置資料
-    DC->>API: 查詢論文資料
-    API-->>DC: XML/JSON 回應
+    CW->>DC: 定時觸發
+    DC->>S3C: 載入 YAML Config
+    S3C-->>DC: config data
+    DC->>API: 查詢 paper 資料
+    API-->>DC: XML/JSON response
     DC->>DC: 資料轉換與壓縮
     DC->>S3D: 上傳壓縮檔案
     DC->>CWL: 記錄處理統計
@@ -84,10 +79,10 @@ sequenceDiagram
     participant CWL as CloudWatch Logs
 
     S3->>BP: S3 事件觸發
-    BP->>S3: 下載並解壓縮檔案
+    BP->>S3: 下載 & 解壓縮檔案
     BP->>DD: 執行資料去重
     DD-->>BP: 去重後資料
-    BP->>DDB: 批次 Upsert (25筆/批)
+    BP->>DDB: 批次 Upsert
     BP->>SF: 回傳 ProcessResult
     BP->>CWL: 記錄處理統計
 ```
@@ -104,7 +99,7 @@ sequenceDiagram
     participant CWL as CloudWatch Logs
 
     SF->>VC: 傳入 TraceID
-    VC->>DDB: 查詢論文資料 (GSI)
+    VC->>DDB: 查詢論文資料
     DDB-->>VC: 論文清單
     loop 每篇論文
         VC->>API: 傳送文字內容
@@ -172,17 +167,7 @@ pipeline-api-dynamodb/
    export AWS_SECRET_ACCESS_KEY=your_secret_key
    export AWS_DEFAULT_REGION=us-east-1
    ```
-
-2. **建立基礎設施**
-   ```bash
-   # 建立所有必要的 AWS 資源
-   make setup-infrastructure
-   
-   # 或針對特定環境
-   make setup-infrastructure-env ENV=prod
-   ```
-
-3. **建置和測試**
+2. **建置和測試**
    ```bash
    # 建置所有服務
    make build-all
@@ -197,38 +182,11 @@ pipeline-api-dynamodb/
    make verify-all
    ```
 
-4. **部署服務**
+3. **部署服務**
    ```bash
    # 部署到預設環境 (dev)
    make deploy-all
-   
-   # 部署到特定環境
-   make deploy-env ENV=prod
    ```
-
-#### 環境特定部署
-
-**開發環境**:
-```bash
-# 設定開發環境變數
-export ENVIRONMENT=dev
-export AWS_REGION=us-east-1
-
-# 部署開發環境
-make setup-infrastructure-env ENV=dev
-make deploy-env ENV=dev
-```
-
-**生產環境**:
-```bash
-# 設定生產環境變數
-export ENVIRONMENT=prod
-export AWS_REGION=us-east-1
-
-# 部署生產環境 (需要額外權限)
-make setup-infrastructure-env ENV=prod
-make deploy-env ENV=prod
-```
 
 #### 個別服務部署
 
@@ -245,13 +203,6 @@ make embedding-api TARGET=deploy
 ### 1. 資料收集服務 (Go) - `data-collector`
 
 **功能概述**: 從多個學術資料來源收集論文資料並壓縮存儲
-
-**技術規格**:
-- **語言**: Go 1.23+
-- **觸發方式**: CloudWatch Events (定時執行)
-- **記憶體**: 512MB
-- **超時**: 15分鐘
-- **並發**: 預設 1000
 
 **輸入格式**:
 ```json
@@ -276,7 +227,7 @@ make embedding-api TARGET=deploy
 ```
 
 **主要功能**:
-- 支援多資料來源 (arXiv, PubMed, Semantic Scholar)
+- 支援多資料來源 (目前只放了 arXiv)
 - 自動資料格式轉換和標準化
 - Gzip 壓縮減少存儲成本
 - 結構化日誌和錯誤處理
@@ -284,13 +235,6 @@ make embedding-api TARGET=deploy
 ### 2. 批次處理服務 (Go) - `batch-processor`
 
 **功能概述**: 處理 S3 壓縮資料，執行去重和 DynamoDB upsert 操作
-
-**技術規格**:
-- **語言**: Go 1.23+
-- **觸發方式**: S3 事件通知
-- **記憶體**: 1024MB
-- **超時**: 15分鐘
-- **批次大小**: 25筆/批次
 
 **輸入格式** (S3 Event):
 ```json
@@ -318,20 +262,13 @@ make embedding-api TARGET=deploy
 
 **主要功能**:
 - S3 檔案自動下載和解壓縮
-- 基於 paper_id 的智慧去重
+- 基於 paper_id 的去重
 - DynamoDB 批次 upsert 操作
 - TraceID 生成用於流程追蹤
 
 ### 3. 向量化協調服務 (Go) - `vector-coordinator`
 
-**功能概述**: 根據 TraceID 協調向量化流程，調用 Python API 生成 embedding
-
-**技術規格**:
-- **語言**: Go 1.23+
-- **觸發方式**: Step Function
-- **記憶體**: 512MB
-- **超時**: 15分鐘
-- **並發處理**: 支援
+**功能概述**: 根據 TraceID 控制向量化流程，調用 Python API 生成 embedding
 
 **輸入格式**:
 ```json
@@ -352,22 +289,13 @@ make embedding-api TARGET=deploy
 ```
 
 **主要功能**:
-- 根據 TraceID 查詢待向量化論文
+- 根據 TraceID 查詢待向量化 papers
 - 調用 Python embedding API
 - 向量結果批次存儲
-- 錯誤處理和重試機制
 
 ### 4. 向量化 API 服務 (Python) - `embedding-api`
 
 **功能概述**: 純粹的文字轉向量 API 服務，使用 Hugging Face 模型
-
-**技術規格**:
-- **語言**: Python 3.11+
-- **框架**: Flask 3.0+
-- **觸發方式**: HTTP API
-- **記憶體**: 2048MB
-- **超時**: 30秒
-- **模型**: sentence-transformers/all-MiniLM-L6-v2
 
 **API 端點**:
 
@@ -390,18 +318,6 @@ make embedding-api TARGET=deploy
   "processing_time_ms": 150
 }
 ```
-
-#### GET `/health`
-**回應格式**:
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "memory_usage_mb": 1024,
-  "uptime_seconds": 3600
-}
-```
-
 **主要功能**:
 - 預載入 Hugging Face 模型
 - 文字預處理和標準化
@@ -435,7 +351,7 @@ data_sources:
 - **主鍵**: paper_id + vector_type
 - **GSI**: vector_type + created_at, model_version + paper_id
 
-## 開發指南
+## 開發 guide
 
 ### 個別服務開發
 
@@ -462,180 +378,20 @@ make local-run
 ## 監控與日誌
 
 - **結構化日誌**: 所有服務輸出 JSON 格式日誌到 CloudWatch
-- **指標監控**: 自定義指標追蹤處理進度和錯誤率
-- **告警設定**: 基於錯誤率和處理時間的告警
+- **指標監控**: 在 cloudwatch 上定義指標追蹤執行狀況
+- **告警設定**: 針對單位時間內的錯誤率，以及大量寫入的資料給予謹告
 
-## 維護指南
-
-### 日常維護任務
-
-#### 1. 監控檢查
-```bash
-# 檢查所有 Lambda 函數狀態
-aws lambda list-functions --query 'Functions[?starts_with(FunctionName, `data-collector`) || starts_with(FunctionName, `batch-processor`) || starts_with(FunctionName, `vector-coordinator`) || starts_with(FunctionName, `embedding-api`)].{Name:FunctionName,State:State,LastModified:LastModified}'
-
-# 檢查 DynamoDB 資料表狀態
-aws dynamodb list-tables --query 'TableNames[?contains(@, `papers`) || contains(@, `vectors`)]'
-
-# 檢查 S3 bucket 使用量
-aws s3 ls s3://pipeline-raw-data --recursive --human-readable --summarize
-```
-
-#### 2. 效能監控
-```bash
-# 查看 Lambda 執行統計
-aws logs insights start-query \
-  --log-group-name /aws/lambda/batch-processor \
-  --start-time $(date -d '1 hour ago' +%s) \
-  --end-time $(date +%s) \
-  --query-string 'fields @timestamp, @duration, @billedDuration, @memorySize, @maxMemoryUsed | filter @type = "REPORT" | sort @timestamp desc | limit 20'
-
-# 查看 DynamoDB 讀寫容量使用率
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/DynamoDB \
-  --metric-name ConsumedReadCapacityUnits \
-  --dimensions Name=TableName,Value=papers-table \
-  --start-time $(date -d '1 hour ago' -u +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Sum
-```
-
-#### 3. 資料品質檢查
-```bash
-# 檢查最近處理的資料量
-aws dynamodb scan \
-  --table-name papers-table \
-  --filter-expression "created_at > :yesterday" \
-  --expression-attribute-values '{":yesterday":{"S":"2024-01-01T00:00:00Z"}}' \
-  --select COUNT
-
-# 檢查向量化完成率
-aws dynamodb scan \
-  --table-name vectors-table \
-  --select COUNT
-```
-
-### 故障排除
-
-#### 常見問題診斷
-
-**1. Lambda 函數執行失敗**
-```bash
-# 查看最近的錯誤日誌
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/data-collector \
-  --start-time $(date -d '1 hour ago' +%s)000 \
-  --filter-pattern "ERROR"
-
-# 檢查函數配置
-aws lambda get-function-configuration --function-name data-collector
-```
-
-**2. DynamoDB 寫入問題**
-```bash
-# 檢查資料表狀態
-aws dynamodb describe-table --table-name papers-table
-
-# 查看 DynamoDB 錯誤
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/batch-processor \
-  --filter-pattern "DynamoDB"
-```
-
-**3. S3 事件觸發問題**
-```bash
-# 檢查 S3 事件配置
-aws s3api get-bucket-notification-configuration --bucket pipeline-raw-data
-
-# 查看 S3 相關日誌
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/batch-processor \
-  --filter-pattern "S3"
-```
-
-**4. 向量化 API 問題**
-```bash
-# 測試 API 端點
-curl -X POST https://your-api-gateway-url/embed \
-  -H "Content-Type: application/json" \
-  -d '{"text": "test embedding"}'
-
-# 檢查 API 健康狀態
-curl https://your-api-gateway-url/health
-```
-
-#### 效能調優
-
-**Lambda 記憶體調整**:
-```bash
-# 調整記憶體配置
-aws lambda update-function-configuration \
-  --function-name batch-processor \
-  --memory-size 1024
-
-# 調整超時設定
-aws lambda update-function-configuration \
-  --function-name data-collector \
-  --timeout 900
-```
-
-**DynamoDB 容量調整**:
-```bash
-# 調整讀寫容量
-aws dynamodb update-table \
-  --table-name papers-table \
-  --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=10
-```
-
-### 備份與恢復
-
-#### 1. DynamoDB 備份
-```bash
-# 建立即時備份
-aws dynamodb create-backup \
-  --table-name papers-table \
-  --backup-name papers-backup-$(date +%Y%m%d)
-
-# 啟用時間點恢復
-aws dynamodb update-continuous-backups \
-  --table-name papers-table \
-  --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true
-```
-
-#### 2. S3 資料備份
-```bash
-# 同步到備份 bucket
-aws s3 sync s3://pipeline-raw-data s3://pipeline-raw-data-backup
-
-# 啟用版本控制
-aws s3api put-bucket-versioning \
-  --bucket pipeline-raw-data \
-  --versioning-configuration Status=Enabled
-```
-
-#### 3. Lambda 函數備份
-```bash
-# 匯出函數程式碼
-aws lambda get-function \
-  --function-name data-collector \
-  --query 'Code.Location' \
-  --output text | xargs wget -O data-collector-backup.zip
-```
-
-### 擴展指南
+# 擴展 Guide
 
 #### 新增資料來源
 1. 更新 `config/pipeline-config.yaml`
-2. 實作新的 API 客戶端
-3. 更新資料映射邏輯
-4. 執行測試並部署
+2. 實作新的 API client
+3. 更新 data mapping logic
+4. 執行測試 & 部署
 
 #### 效能擴展
-1. **水平擴展**: 增加 Lambda 並發限制
+1. **水平擴展**: 增加 Lambda 並發限制，實作 goroutine 並發處理
 2. **垂直擴展**: 調整記憶體和 CPU 配置
-3. **資料庫擴展**: 使用 DynamoDB Auto Scaling
-4. **快取層**: 新增 ElastiCache 或 CloudFront
 
 ### 監控告警設定
 
@@ -665,14 +421,3 @@ aws cloudwatch put-metric-alarm \
   --comparison-operator GreaterThanThreshold \
   --dimensions Name=TableName,Value=papers-table
 ```
-
-## 貢獻指南
-
-1. Fork 專案
-2. 建立功能分支
-3. 提交變更並撰寫測試
-4. 建立 Pull Request
-
-## 授權
-
-MIT License

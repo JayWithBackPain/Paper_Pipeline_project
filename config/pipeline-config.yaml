@@ -12,33 +12,6 @@ data_sources:
     max_results: 1000
     search_query: "cat:cs.AI OR cat:cs.LG OR cat:cs.CL"
 
-  pubmed:
-    api_endpoint: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
-    fields_mapping:
-      id: "pmid"
-      title: "ArticleTitle"
-      abstract: "AbstractText"
-      authors: "AuthorList"
-      published: "PubDate"
-      categories: "MeshHeadingList"
-    rate_limit: 10  # requests per second
-    max_results: 1000
-    search_query: "artificial intelligence OR machine learning"
-    
-  # Future data sources can be added here
-  semantic_scholar:
-    api_endpoint: "https://api.semanticscholar.org/graph/v1/"
-    fields_mapping:
-      id: "paperId"
-      title: "title"
-      abstract: "abstract"
-      authors: "authors"
-      published: "publicationDate"
-      categories: "fieldsOfStudy"
-    rate_limit: 100  # requests per second
-    max_results: 1000
-    enabled: false  # Disabled by default
-
 # AWS Configuration
 aws:
   s3:
