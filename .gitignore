@@ -49,9 +49,13 @@ build/
 dist/
 target/
 
-# Test files
-*test*
-*Test*
-*TEST*
+# Test files - 更精確的規則
+*_test.go
+*_test.py
+test_*.py
+test_*.go
+*Test.go
+*Test.py
 
-.kiro
+# Kiro specs - 專案規格檔案
+.kiro/
