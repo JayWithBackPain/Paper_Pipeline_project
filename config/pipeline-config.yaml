@@ -1,0 +1,77 @@
+data_sources:
+  arxiv:
+    api_endpoint: "http://export.arxiv.org/api/query"
+    fields_mapping:
+      id: "id"
+      title: "title"
+      abstract: "summary"
+      authors: "author"
+      published: "published"
+      categories: "category"
+    rate_limit: 3  # requests per second
+    max_results: 1000
+    search_query: "cat:cs.AI OR cat:cs.LG OR cat:cs.CL"
+
+  pubmed:
+    api_endpoint: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+    fields_mapping:
+      id: "pmid"
+      title: "ArticleTitle"
+      abstract: "AbstractText"
+      authors: "AuthorList"
+      published: "PubDate"
+      categories: "MeshHeadingList"
+    rate_limit: 10  # requests per second
+    max_results: 1000
+    search_query: "artificial intelligence OR machine learning"
+    
+  # Future data sources can be added here
+  semantic_scholar:
+    api_endpoint: "https://api.semanticscholar.org/graph/v1/"
+    fields_mapping:
+      id: "paperId"
+      title: "title"
+      abstract: "abstract"
+      authors: "authors"
+      published: "publicationDate"
+      categories: "fieldsOfStudy"
+    rate_limit: 100  # requests per second
+    max_results: 1000
+    enabled: false  # Disabled by default
+
+# AWS Configuration
+aws:
+  s3:
+    raw_data_bucket: "pipeline-raw-data"
+    config_bucket: "pipeline-config"
+    raw_data_prefix: "raw-data"
+  
+  dynamodb:
+    papers_table: "Papers"
+    vectors_table: "Vectors"
+    region: "us-east-1"
+  
+  lambda:
+    timeout: 900  # seconds
+    memory: 1024   # MB
+
+# Processing Configuration
+processing:
+  batch_size: 25  # DynamoDB batch write size
+  compression: "gzip"
+  retry_attempts: 3
+  retry_delay: 1  # seconds
+
+# Vectorization Configuration
+vectorization:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  vector_dimension: 384
+  batch_size: 10
+  text_fields: ["title", "abstract"]
+  max_text_length: 1024
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  structured: true
+  include_trace_id: true

@@ -1,0 +1,50 @@
+# Go
+go-services/*/dist/
+go-services/*/build/
+go-services/*/*.zip
+*.zip
+*.exe
+
+# Python
+python-services/*/venv/
+python-services/*/__pycache__/
+python-services/*/.pytest_cache/
+python-services/*/package/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# AWS
+*.pem
+.aws/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.development
+
+# Build artifacts
+build/
+dist/
+target/

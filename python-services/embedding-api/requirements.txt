@@ -1,0 +1,10 @@
+transformers>=4.45.0
+sentence-transformers>=3.1.1
+torch>=2.5.0
+numpy>=2.1.0
+boto3>=1.35.0
+requests>=2.32.0
+pytest>=8.3.0
+psutil>=6.1.0
+flask>=3.0.0
+werkzeug>=3.0.0
