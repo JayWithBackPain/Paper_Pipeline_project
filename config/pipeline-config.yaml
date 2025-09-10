@@ -11,6 +11,9 @@ data_sources:
     rate_limit: 3  # requests per second
     max_results: 1000
     search_query: "cat:cs.AI OR cat:cs.LG OR cat:cs.CL"
+    # Optional date range (format: YYYY-MM-DD)
+    # date_from: "2024-01-01"  # Start date (inclusive)
+    # date_to: "2024-12-31"    # End date (inclusive)
 
 # AWS Configuration
 aws:

@@ -1,6 +1,30 @@
 # Pipeline API DynamoDB
 
-學術論文資料處理管線，支援從多個資料來源收集、處理、向量化論文資料的完整 serverless 架構。
+## 關於 HackMD 筆記上的提問
+### 1.Performance and Scalability Considerations
+- lambda function: 具備自動擴展能力，可根據流量調整資源
+- 批次處理: DynamoDB 批次寫入，試圖尋找 I/O 量和作業時間控制的平衡
+- 資料壓縮: 使用 gzip 壓縮減少 S3 儲存成本和傳輸時間
+- 並發: 可擴充的 Go goroutines 並發處理
+- 資料庫分片: 在 DynamoDB 中除了 PK 和 SK 的設定，另外加上 GSI 做來源和時間標記的 index
+### 2. Architectural and Processing Design Rationale
+- 單一服務獨立 function，確保能做到模組化的維護
+- 利用 step function 做流程控制和錯誤控制，對整合服務來說高度友善
+
+### 3. Data Quality Safeguards
+- 資料匯入時的去重複作業：基於唯一 url 做 paper_id
+- 統計檢查：raw data 筆數、去重筆數
+- 資料完整性：針對 paper_id 做 upsert，記錄失敗項目但不影響成功項目
+
+### 4.Fault Tolerance and Recovery
+- Source API Client : arXiv API 失敗作時間控制的重試 3 次
+- DynamoDB 層: 未處理 item 自動重試機制
+- Step Function 層: lambda invocation 失敗重試
+- 錯誤隔離：支持batch錯誤繼續走，並且記錄 traceID 作為修復用
+
+### 5. challenges with arXiv
+- 對於陌生的原始資料要先做一次廣泛的 query，釐清可能存在的資料多樣性
+- 釐清可能存在的 category 以及對總量的初步認識
 
 ## 系統架構
 

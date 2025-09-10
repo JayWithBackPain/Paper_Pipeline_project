@@ -16,9 +16,9 @@ import (
 
 // Client represents an arXiv API client
 type Client struct {
-	httpClient *http.Client
-	baseURL    string
-	rateLimit  time.Duration
+	httpClient  *http.Client
+	baseURL     string
+	rateLimit   time.Duration
 	lastRequest time.Time
 }
 
@@ -38,6 +38,8 @@ type SearchParams struct {
 	Query      string
 	MaxResults int
 	StartIndex int
+	DateFrom   *time.Time // Optional: search from this date (inclusive)
+	DateTo     *time.Time // Optional: search to this date (inclusive)
 }
 
 // Search performs a search query against arXiv API
@@ -120,8 +122,21 @@ func (c *Client) buildQueryURL(params SearchParams) (string, error) {
 		return "", fmt.Errorf("invalid base URL: %w", err)
 	}
 
+	// Build the search query with optional date range
+	searchQuery := params.Query
+	if params.DateFrom != nil || params.DateTo != nil {
+		dateQuery := c.buildDateQuery(params.DateFrom, params.DateTo)
+		if dateQuery != "" {
+			if searchQuery != "" {
+				searchQuery = fmt.Sprintf("(%s) AND %s", searchQuery, dateQuery)
+			} else {
+				searchQuery = dateQuery
+			}
+		}
+	}
+
 	query := baseURL.Query()
-	query.Set("search_query", params.Query)
+	query.Set("search_query", searchQuery)
 	query.Set("max_results", strconv.Itoa(params.MaxResults))
 	query.Set("start", strconv.Itoa(params.StartIndex))
 	query.Set("sortBy", "submittedDate")
@@ -190,6 +205,31 @@ func (c *Client) convertEntryToPaper(entry types.ArxivEntry, rawXML string) (typ
 		RawXML:        rawXML,
 		URL:           paperURL,
 	}, nil
+}
+
+// buildDateQuery constructs date range query for arXiv API
+func (c *Client) buildDateQuery(dateFrom, dateTo *time.Time) string {
+	// arXiv uses YYYYMMDD format for date queries
+	var dateQueries []string
+
+	if dateFrom != nil {
+		fromStr := dateFrom.Format("20060102")
+		dateQueries = append(dateQueries, fmt.Sprintf("submittedDate:[%s0000 TO *]", fromStr))
+	}
+
+	if dateTo != nil {
+		toStr := dateTo.Format("20060102")
+		dateQueries = append(dateQueries, fmt.Sprintf("submittedDate:[* TO %s2359]", toStr))
+	}
+
+	if len(dateQueries) == 2 && dateFrom != nil && dateTo != nil {
+		// If both dates are provided, create a single range query
+		fromStr := dateFrom.Format("20060102")
+		toStr := dateTo.Format("20060102")
+		return fmt.Sprintf("submittedDate:[%s0000 TO %s2359]", fromStr, toStr)
+	}
+
+	return strings.Join(dateQueries, " AND ")
 }
 
 // extractArxivID extracts the arXiv ID from the full URL

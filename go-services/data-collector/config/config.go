@@ -13,11 +13,11 @@ import (
 
 // Config represents the complete pipeline configuration
 type Config struct {
-	DataSources    map[string]DataSourceConfig `yaml:"data_sources"`
-	AWS            AWSConfig                   `yaml:"aws"`
-	Processing     ProcessingConfig            `yaml:"processing"`
-	Vectorization  VectorizationConfig         `yaml:"vectorization"`
-	Logging        LoggingConfig               `yaml:"logging"`
+	DataSources   map[string]DataSourceConfig `yaml:"data_sources"`
+	AWS           AWSConfig                   `yaml:"aws"`
+	Processing    ProcessingConfig            `yaml:"processing"`
+	Vectorization VectorizationConfig         `yaml:"vectorization"`
+	Logging       LoggingConfig               `yaml:"logging"`
 }
 
 // DataSourceConfig represents configuration for a data source
@@ -27,6 +27,8 @@ type DataSourceConfig struct {
 	RateLimit     int               `yaml:"rate_limit"`
 	MaxResults    int               `yaml:"max_results"`
 	SearchQuery   string            `yaml:"search_query"`
+	DateFrom      string            `yaml:"date_from,omitempty"` // Format: YYYY-MM-DD
+	DateTo        string            `yaml:"date_to,omitempty"`   // Format: YYYY-MM-DD
 	Enabled       bool              `yaml:"enabled"`
 }
 
@@ -39,9 +41,9 @@ type AWSConfig struct {
 
 // S3Config represents S3 configuration
 type S3Config struct {
-	RawDataBucket  string `yaml:"raw_data_bucket"`
-	ConfigBucket   string `yaml:"config_bucket"`
-	RawDataPrefix  string `yaml:"raw_data_prefix"`
+	RawDataBucket string `yaml:"raw_data_bucket"`
+	ConfigBucket  string `yaml:"config_bucket"`
+	RawDataPrefix string `yaml:"raw_data_prefix"`
 }
 
 // DynamoDBConfig represents DynamoDB configuration
@@ -59,10 +61,10 @@ type LambdaConfig struct {
 
 // ProcessingConfig represents processing configuration
 type ProcessingConfig struct {
-	BatchSize      int    `yaml:"batch_size"`
-	Compression    string `yaml:"compression"`
-	RetryAttempts  int    `yaml:"retry_attempts"`
-	RetryDelay     int    `yaml:"retry_delay"`
+	BatchSize     int    `yaml:"batch_size"`
+	Compression   string `yaml:"compression"`
+	RetryAttempts int    `yaml:"retry_attempts"`
+	RetryDelay    int    `yaml:"retry_delay"`
 }
 
 // VectorizationConfig represents vectorization configuration

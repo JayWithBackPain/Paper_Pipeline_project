@@ -43,50 +43,50 @@ func handleLambda(ctx context.Context) error {
 			appLogger.Error("Lambda handler panic recovered", err)
 		}
 	}()
-	
+
 	start := time.Now()
 	contextLogger := appLogger.WithContext(ctx)
-	
+
 	contextLogger.Info("Data collector lambda handler started")
-	
+
 	// Execute the complete data collection pipeline
 	result, err := executeDataCollection(ctx, contextLogger)
 	if err != nil {
 		return errorHandler.Handle(err, "data collection pipeline")
 	}
-	
+
 	contextLogger.InfoWithDuration("Lambda handler completed successfully", time.Since(start))
 	contextLogger.InfoWithCount("Papers collected and uploaded", result.Count)
-	
+
 	return nil
 }
 
 // executeDataCollection performs the complete data collection pipeline
 func executeDataCollection(ctx context.Context, contextLogger *logger.Logger) (*types.CollectionResult, error) {
 	start := time.Now()
-	
+
 	// 1. Load configuration
 	contextLogger.Info("Loading configuration")
 	cfg, err := loadConfiguration(ctx)
 	if err != nil {
 		return nil, logger.WrapError(err, logger.ErrorTypeConfig, "failed to load configuration")
 	}
-	
+
 	// 2. Get arXiv data source configuration
 	arxivConfig, err := cfg.GetDataSourceConfig("arxiv")
 	if err != nil {
 		return nil, logger.WrapError(err, logger.ErrorTypeConfig, "failed to get arXiv configuration")
 	}
-	
+
 	contextLogger.Info("Configuration loaded successfully", map[string]interface{}{
 		"api_endpoint": arxivConfig.APIEndpoint,
 		"max_results":  arxivConfig.MaxResults,
 		"rate_limit":   arxivConfig.RateLimit,
 	})
-	
+
 	// 3. Initialize arXiv client
 	arxivClient := arxiv.NewClient(arxivConfig.APIEndpoint, arxivConfig.RateLimit)
-	
+
 	// 4. Perform arXiv search
 	contextLogger.Info("Starting arXiv API search")
 	searchParams := arxiv.SearchParams{
@@ -94,40 +94,63 @@ func executeDataCollection(ctx context.Context, contextLogger *logger.Logger) (*
 		MaxResults: arxivConfig.MaxResults,
 		StartIndex: 0,
 	}
-	
+
+	// Parse date range if provided
+	if arxivConfig.DateFrom != "" {
+		if dateFrom, err := time.Parse("2006-01-02", arxivConfig.DateFrom); err == nil {
+			searchParams.DateFrom = &dateFrom
+		} else {
+			contextLogger.Warn("Invalid date_from format, ignoring", map[string]interface{}{
+				"date_from": arxivConfig.DateFrom,
+				"error":     err.Error(),
+			})
+		}
+	}
+
+	if arxivConfig.DateTo != "" {
+		if dateTo, err := time.Parse("2006-01-02", arxivConfig.DateTo); err == nil {
+			searchParams.DateTo = &dateTo
+		} else {
+			contextLogger.Warn("Invalid date_to format, ignoring", map[string]interface{}{
+				"date_to": arxivConfig.DateTo,
+				"error":   err.Error(),
+			})
+		}
+	}
+
 	result, err := arxivClient.Search(ctx, searchParams)
 	if err != nil {
 		return nil, logger.WrapError(err, logger.ErrorTypeAPI, "arXiv API search failed")
 	}
-	
+
 	contextLogger.InfoWithCount("Papers retrieved from arXiv", result.Count)
 	contextLogger.InfoWithDuration("arXiv API search completed", time.Since(start))
-	
+
 	// 5. Initialize S3 uploader
 	uploader, err := s3.NewUploader(cfg.AWS.S3.RawDataBucket, cfg.AWS.S3.RawDataPrefix)
 	if err != nil {
 		return nil, logger.WrapError(err, logger.ErrorTypeS3, "failed to initialize S3 uploader")
 	}
-	
+
 	// 6. Upload to S3
 	contextLogger.Info("Uploading data to S3")
 	uploadStart := time.Now()
-	
+
 	uploadResult, err := uploader.UploadCompressedData(ctx, result)
 	if err != nil {
 		return nil, logger.WrapError(err, logger.ErrorTypeS3, "S3 upload failed")
 	}
-	
+
 	contextLogger.InfoWithDuration("S3 upload completed", time.Since(uploadStart))
 	contextLogger.Info("Data uploaded successfully", map[string]interface{}{
-		"s3_key":          uploadResult.S3Key,
-		"compressed_size": uploadResult.CompressedSize,
-		"original_size":   uploadResult.OriginalSize,
+		"s3_key":            uploadResult.S3Key,
+		"compressed_size":   uploadResult.CompressedSize,
+		"original_size":     uploadResult.OriginalSize,
 		"compression_ratio": float64(uploadResult.CompressedSize) / float64(uploadResult.OriginalSize),
 	})
-	
+
 	contextLogger.InfoWithDuration("Complete data collection pipeline finished", time.Since(start))
-	
+
 	return result, nil
 }
 
@@ -137,11 +160,11 @@ func loadConfiguration(ctx context.Context) (*config.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config manager: %w", err)
 	}
-	
+
 	// Try to load from S3 first, fallback to default config
 	configBucket := os.Getenv("CONFIG_BUCKET")
 	configKey := os.Getenv("CONFIG_KEY")
-	
+
 	if configBucket != "" && configKey != "" {
 		cfg, err := configManager.LoadFromS3(ctx, configBucket, configKey)
 		if err != nil {
@@ -154,7 +177,7 @@ func loadConfiguration(ctx context.Context) (*config.Config, error) {
 		}
 		return cfg, nil
 	}
-	
+
 	// Use default configuration
 	appLogger.Info("Using default configuration")
 	return config.GetDefaultConfig(), nil
@@ -162,21 +185,21 @@ func loadConfiguration(ctx context.Context) (*config.Config, error) {
 
 func runLocalTest() error {
 	appLogger.Info("Starting local development test")
-	
+
 	// Execute the complete data collection pipeline in local mode
 	ctx := context.Background()
 	contextLogger := appLogger.WithContext(ctx)
-	
+
 	result, err := executeDataCollection(ctx, contextLogger)
 	if err != nil {
 		return fmt.Errorf("local test failed: %w", err)
 	}
-	
+
 	appLogger.Info("Local development test completed successfully", map[string]interface{}{
 		"papers_collected": result.Count,
-		"source":          result.Source,
-		"timestamp":       result.Timestamp.Format(time.RFC3339),
+		"source":           result.Source,
+		"timestamp":        result.Timestamp.Format(time.RFC3339),
 	})
-	
+
 	return nil
 }
