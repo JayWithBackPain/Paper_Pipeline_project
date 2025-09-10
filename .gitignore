@@ -48,3 +48,8 @@ logs/
 build/
 dist/
 target/
+
+# Test files
+*test*
+*Test*
+*TEST*
